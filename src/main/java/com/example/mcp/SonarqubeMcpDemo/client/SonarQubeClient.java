@@ -56,6 +56,9 @@ public class SonarQubeClient {
             }
 
             return response.body();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "{\"error\": \"Request interrupted\"}";
         } catch (Exception e) {
             return "{\"error\": \"" + e.getMessage().replace("\"", "'") + "\"}";
         }

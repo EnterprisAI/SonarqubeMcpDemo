@@ -154,15 +154,17 @@ plugins {
   -Dsonar.projectKey=my-project
 ```
 
-**Windows:**
+**Windows (Command Prompt) — single line:**
 ```cmd
-.\gradlew sonar ^
-  -Dsonar.host.url=http://localhost:9000 ^
-  -Dsonar.token=squ_yourtoken ^
-  -Dsonar.projectKey=my-project
+.\gradlew sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=squ_yourtoken -Dsonar.projectKey=my-project
 ```
 
-> Use `^` for line continuation in Windows Command Prompt. In PowerShell use a backtick `` ` `` instead, or put it all on one line.
+**Windows (PowerShell) — quote each `-D` argument to avoid `=` parsing issues:**
+```powershell
+.\gradlew sonar "-Dsonar.host.url=http://localhost:9000" "-Dsonar.token=squ_yourtoken" "-Dsonar.projectKey=my-project"
+```
+
+> Avoid multi-line `^` continuation for Gradle `-D` arguments on Windows — Gradle may interpret each line as a separate task name.
 
 #### Alternative — standalone sonar-scanner CLI (no plugin needed)
 
@@ -226,6 +228,100 @@ java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
 
 ---
 
+## Integration with GitHub Models (Alternative to Claude Desktop)
+
+If Claude Desktop is not available, you can use **GitHub Models** — a free AI model hosting service by GitHub that supports GPT-4o, Llama, Mistral and others via an OpenAI-compatible API.
+
+This project exposes a `POST /chat` REST endpoint. You send it a plain-text question, the AI calls the SonarQube tools automatically, and you get a human-readable answer back.
+
+```
+You (HTTP client / curl / Postman)
+        │  POST /chat  "What bugs does sonarqube-mcp-demo have?"
+        ▼
+┌─────────────────────────────────────┐
+│  Spring Boot App (port 8080)        │
+│  ChatController → ChatClient        │
+│  + SonarQubeMcpTools (@Tool)        │
+└─────────────────────────────────────┘
+        │  tool calls (in-process)
+        ▼                    ▲
+┌───────────────────┐        │ HTTP REST
+│  GitHub Models AI │        │
+│  (GPT-4o-mini etc)│──────▶ SonarQube :9000
+└───────────────────┘
+```
+
+### Step 1 — Create a GitHub Personal Access Token (PAT)
+
+1. Go to **GitHub → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. Under **Permissions**, no special scopes are needed — the default read-only access is sufficient for GitHub Models
+4. Copy the token (starts with `github_pat_...`)
+
+### Step 2 — Run the App with GitHub Token
+
+**Windows (Command Prompt):**
+```cmd
+set SONARQUBE_URL=http://localhost:9000
+set SONARQUBE_TOKEN=squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b
+set GITHUB_TOKEN=github_pat_yourtoken
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:SONARQUBE_URL  = "http://localhost:9000"
+$env:SONARQUBE_TOKEN = "squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b"
+$env:GITHUB_TOKEN   = "github_pat_yourtoken"
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+### Step 3 — Ask Questions via curl or Postman
+
+**curl:**
+```cmd
+curl -X POST http://localhost:8080/chat -H "Content-Type: text/plain" -d "What bugs does sonarqube-mcp-demo have?"
+```
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri http://localhost:8080/chat -Method POST -ContentType "text/plain" -Body "What is the quality gate status of sonarqube-mcp-demo?"
+```
+
+**Postman:**
+- Method: `POST`
+- URL: `http://localhost:8080/chat`
+- Body: `raw` → type `Text`
+- Body content: your question
+
+### Available GitHub Models
+
+Change the model via the `GITHUB_MODEL` environment variable (default is `gpt-4o-mini`):
+
+| Model | Env value |
+|-------|-----------|
+| GPT-4o mini (default, fast & free) | `gpt-4o-mini` |
+| GPT-4o | `gpt-4o` |
+| Meta Llama 3.3 70B | `Meta-Llama-3.3-70B-Instruct` |
+| Mistral Large | `Mistral-Large-2411` |
+
+```cmd
+set GITHUB_MODEL=gpt-4o
+```
+
+### Example Questions to Try
+
+```
+What projects are in SonarQube?
+What are the metrics for sonarqube-mcp-demo?
+Is the quality gate passing for sonarqube-mcp-demo?
+Show me all code smells in sonarqube-mcp-demo
+Are there any security hotspots I should review?
+Give me a full health summary of sonarqube-mcp-demo
+```
+
+---
+
 ## Integration with Claude Desktop
 
 Add the following to your Claude Desktop config file:
@@ -269,6 +365,193 @@ implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 implementation 'org.springaicommunity:mcp-server-security:0.1.1'
 implementation 'org.springaicommunity:mcp-client-security:0.1.1'
 ```
+
+---
+
+## Complete End-to-End Walkthrough (Verified Steps)
+
+Everything below was executed and verified. Follow these steps in order to go from a fresh clone to a fully working SonarQube MCP server.
+
+---
+
+### Step 1 — Fix the Gradle Wrapper (offline / no network)
+
+The project's wrapper pointed to Gradle 9.3.1 which requires a network download. Gradle 8.14.3 is already cached locally and works with the sonarqube plugin.
+
+Edit `gradle/wrapper/gradle-wrapper.properties` and change the distribution URL:
+
+```properties
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.14.3-bin.zip
+```
+
+If there is an incomplete Gradle 9.3.1 download cached at `%USERPROFILE%\.gradle\wrapper\dists\gradle-9.3.1-bin`, delete that folder — otherwise IntelliJ will keep retrying the failed download.
+
+---
+
+### Step 2 — Add Spring Milestones Repository to `build.gradle`
+
+Spring AI `2.0.0-M2` is a milestone release and is not published to Maven Central. Add the milestone repo:
+
+```groovy
+repositories {
+    mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
+    maven { url 'https://repo.spring.io/snapshot' }
+}
+```
+
+---
+
+### Step 3 — Add the SonarQube Gradle Plugin to `build.gradle`
+
+```groovy
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.sonarqube' version '6.0.1.5171'
+}
+```
+
+> The `sonar` task does not exist at all until this plugin is declared. Run `.\gradlew sonar` only after adding it.
+
+---
+
+### Step 4 — Build the Project
+
+```cmd
+.\gradlew build
+```
+
+Expected output: `BUILD SUCCESSFUL`
+
+---
+
+### Step 5 — Start SonarQube via Docker
+
+```cmd
+docker pull sonarqube:community
+docker run -d --name sonarqube -p 9000:9000 sonarqube:community
+```
+
+Wait about 60 seconds, then open `http://localhost:9000` in a browser. When the page loads, SonarQube is ready.
+
+---
+
+### Step 6 — Change the Default Admin Password
+
+Default credentials are `admin` / `admin`. SonarQube forces a password change on first login.
+
+Either change it through the browser, or via the API (password must be at least 12 characters):
+
+```bash
+curl -X POST "http://localhost:9000/api/users/change_password" \
+  -u admin:admin \
+  -d "login=admin&previousPassword=admin&password=Admin@123456"
+```
+
+**Credentials used in this project:**
+- Username: `admin`
+- Password: `Admin@123456`
+
+---
+
+### Step 7 — Generate a User Token
+
+```bash
+curl -X POST "http://localhost:9000/api/user_tokens/generate" \
+  -u admin:Admin@123456 \
+  -d "name=mcp-demo-token&type=USER_TOKEN"
+```
+
+This returns a token in the response JSON — copy the `token` field value.
+
+**Token generated for this project:** `squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b`
+
+> This is the token to use as `SONARQUBE_TOKEN` when running the MCP server.
+
+Token type choice explained:
+- **User Token** ✅ — grants Web API read access (projects, metrics, issues, quality gates)
+- **Global Analysis Token** ❌ — write-only, for submitting scan results
+- **Project Analysis Token** ❌ — same as above but scoped to one project
+
+---
+
+### Step 8 — Scan the Project into SonarQube
+
+Run the scan from the project root. Use `.\gradlew` (not `gradle`) so the cached Gradle 8.14.3 wrapper is used — system Gradle 9.x is incompatible with the sonarqube plugin.
+
+**Windows (Command Prompt) — single line:**
+```cmd
+.\gradlew sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b -Dsonar.projectKey=sonarqube-mcp-demo "-Dsonar.projectName=SonarQube MCP Demo"
+```
+
+**Windows (PowerShell):**
+```powershell
+.\gradlew sonar "-Dsonar.host.url=http://localhost:9000" "-Dsonar.token=squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b" "-Dsonar.projectKey=sonarqube-mcp-demo" "-Dsonar.projectName=SonarQube MCP Demo"
+```
+
+> Avoid multi-line `^` continuation for `-D` arguments on Windows — Gradle treats each line as a separate task name and fails.
+
+Expected output: `BUILD SUCCESSFUL`
+
+Open `http://localhost:9000/projects` to confirm the project `SonarQube MCP Demo` appears.
+
+---
+
+### Step 9 — Run the MCP Server
+
+**Windows (Command Prompt):**
+```cmd
+set SONARQUBE_URL=http://localhost:9000
+set SONARQUBE_TOKEN=squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:SONARQUBE_URL = "http://localhost:9000"
+$env:SONARQUBE_TOKEN = "squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b"
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+The server starts in STDIO mode — it waits for MCP protocol messages on stdin. Logs are written to `sonarqube-mcp.log` in the project root.
+
+---
+
+### Step 10 — Connect Claude Desktop
+
+Edit `%APPDATA%\Claude\claude_desktop_config.json` and add:
+
+```json
+{
+  "mcpServers": {
+    "sonarqube": {
+      "command": "java",
+      "args": ["-jar", "C:\\path\\to\\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar"],
+      "env": {
+        "SONARQUBE_URL": "http://localhost:9000",
+        "SONARQUBE_TOKEN": "squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You should see the SonarQube tools available in the tools panel.
+
+---
+
+### Verified Results After All Steps
+
+| MCP Tool | Status | Result |
+|----------|--------|--------|
+| `listProjects` | ✅ | Returns `sonarqube-mcp-demo` |
+| `getProjectMetrics` | ✅ | Bugs: 0, Vulnerabilities: 0, Code Smells: 8, LOC: 161 |
+| `getQualityGateStatus` | ✅ | **PASSED** |
+| `searchIssues` | ✅ | Returns 8 open issues |
+| `getSecurityHotspots` | ✅ | No hotspots |
+| `getServerInfo` | ✅ | SonarQube 26.3.0 |
 
 ---
 
