@@ -123,20 +123,52 @@ Then:
 1. Open `http://localhost:9000` in your browser (may take ~1 minute to start)
 2. Log in with `admin` / `admin` and set a new password when prompted
 3. Go to **My Account → Security → Generate Tokens**
-4. Create a token and copy it — you'll use it as `SONARQUBE_TOKEN`
+4. Choose token type **User Token** — this grants read access to the Web API which is all this MCP server needs
+   - **User Token** ✅ — for reading projects, metrics, issues, quality gates via the API
+   - **Global Analysis Token** ❌ — only for submitting scan results to SonarQube, not for API reads
+   - **Project Analysis Token** ❌ — same as above but scoped to one project
+5. Copy the generated token — you'll use it as `SONARQUBE_TOKEN`
 
 ### Scanning a project into SonarQube
 
-The tools need at least one analysed project to have data to return. Run a scan from any project on your machine:
+The tools need at least one analysed project to have data to return. Go to the project you want to scan (not this MCP demo project) and follow the steps below.
 
+#### Step 1 — Add the SonarQube plugin to that project's `build.gradle`
+
+The `gradle sonar` task does not exist until the plugin is declared. Open the target project's `build.gradle` and add:
+
+```groovy
+plugins {
+    // ... your existing plugins ...
+    id 'org.sonarqube' version '6.0.1.5171'
+}
+```
+
+#### Step 2 — Run the scan
+
+**macOS / Linux:**
 ```bash
-# Gradle project — add the sonarqube plugin first, then run:
-gradle sonar \
+./gradlew sonar \
   -Dsonar.host.url=http://localhost:9000 \
   -Dsonar.token=squ_yourtoken \
   -Dsonar.projectKey=my-project
+```
 
-# Or use the standalone sonar-scanner CLI:
+**Windows:**
+```cmd
+.\gradlew sonar ^
+  -Dsonar.host.url=http://localhost:9000 ^
+  -Dsonar.token=squ_yourtoken ^
+  -Dsonar.projectKey=my-project
+```
+
+> Use `^` for line continuation in Windows Command Prompt. In PowerShell use a backtick `` ` `` instead, or put it all on one line.
+
+#### Alternative — standalone sonar-scanner CLI (no plugin needed)
+
+If you don't want to modify the project's build file, install the [sonar-scanner CLI](https://docs.sonarsource.com/sonarqube/latest/analyzing-source-code/scanners/sonarscanner/) and run:
+
+```bash
 sonar-scanner \
   -Dsonar.projectKey=my-project \
   -Dsonar.sources=. \
@@ -163,20 +195,32 @@ sonar-scanner \
 
 ### Running the Server
 
+**macOS / Linux:**
 ```bash
 # Build
 ./gradlew build
 
-# Run with environment variables
+# Run
 SONARQUBE_URL=http://localhost:9000 \
 SONARQUBE_TOKEN=squ_yourtoken \
 java -jar build/libs/SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
 ```
 
-On Windows:
+**Windows (Command Prompt):**
 ```cmd
+.\gradlew build
+
 set SONARQUBE_URL=http://localhost:9000
 set SONARQUBE_TOKEN=squ_yourtoken
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+**Windows (PowerShell):**
+```powershell
+.\gradlew build
+
+$env:SONARQUBE_URL = "http://localhost:9000"
+$env:SONARQUBE_TOKEN = "squ_yourtoken"
 java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
 ```
 
