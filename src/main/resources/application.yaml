@@ -1,0 +1,27 @@
+spring:
+  main:
+    # Suppress banner output — required for STDIO transport so stdout stays clean
+    banner-mode: off
+
+  ai:
+    mcp:
+      server:
+        name: sonarqube-mcp-server
+        version: 1.0.0
+        # Set to true when running as a STDIO server (e.g. Claude Desktop integration).
+        # Set to false to use SSE (HTTP) transport instead.
+        stdio: true
+
+# SonarQube connection settings.
+# Override via environment variables: SONARQUBE_URL and SONARQUBE_TOKEN
+sonarqube:
+  url: ${SONARQUBE_URL:http://localhost:9000}
+  token: ${SONARQUBE_TOKEN:}
+
+# Redirect logs to a file so they don't pollute STDIO transport output
+logging:
+  file:
+    name: sonarqube-mcp.log
+  level:
+    root: INFO
+    com.example.mcp: DEBUG
