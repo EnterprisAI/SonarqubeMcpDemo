@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(cd \"C:\\\\Users\\\\Deepak\\\\Code\\\\SonarQubeMCP\\\\SonarqubeMcpDemo\\\\SonarqubeMcpDemo\" && ./gradlew compileJava --no-daemon 2>&1)",
-      "Bash(cd \"C:\\\\Users\\\\Deepak\\\\Code\\\\SonarQubeMCP\\\\SonarqubeMcpDemo\\\\SonarqubeMcpDemo\" && gradle compileJava --no-daemon 2>&1)"
+      "Bash(cd \"C:\\\\Users\\\\Deepak\\\\Code\\\\SonarQubeMCP\\\\SonarqubeMcpDemo\\\\SonarqubeMcpDemo\" && gradle compileJava --no-daemon 2>&1)",
+      "Bash(gradle --version)"
     ]
   }
 }
