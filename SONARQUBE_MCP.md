@@ -95,12 +95,63 @@ Two transport modes are supported by Spring AI MCP:
 
 ---
 
+## Role of Each Component
+
+This app **is** the MCP server — it does not connect to any other MCP server. The `spring-ai-starter-mcp-client` dependency is included in the project template but is not used here.
+
+| Component | Role | Where it runs |
+|-----------|------|---------------|
+| This Spring Boot app | MCP server — exposes SonarQube as AI tools | Your machine |
+| SonarQube | Source of code quality data, called over HTTP | Docker / local (see below) |
+| Claude Desktop / AI client | MCP client — talks to this app | Your machine |
+| Any external MCP server | **Not used** | N/A |
+
+---
+
+## Running SonarQube Locally
+
+You need a running SonarQube instance for the tools to return real data. The quickest way is Docker:
+
+```bash
+docker run -d \
+  --name sonarqube \
+  -p 9000:9000 \
+  sonarqube:community
+```
+
+Then:
+1. Open `http://localhost:9000` in your browser (may take ~1 minute to start)
+2. Log in with `admin` / `admin` and set a new password when prompted
+3. Go to **My Account → Security → Generate Tokens**
+4. Create a token and copy it — you'll use it as `SONARQUBE_TOKEN`
+
+### Scanning a project into SonarQube
+
+The tools need at least one analysed project to have data to return. Run a scan from any project on your machine:
+
+```bash
+# Gradle project — add the sonarqube plugin first, then run:
+gradle sonar \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.token=squ_yourtoken \
+  -Dsonar.projectKey=my-project
+
+# Or use the standalone sonar-scanner CLI:
+sonar-scanner \
+  -Dsonar.projectKey=my-project \
+  -Dsonar.sources=. \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.token=squ_yourtoken
+```
+
+---
+
 ## Setup & Configuration
 
 ### Prerequisites
 
 - Java 17+
-- A running SonarQube instance (Community Edition is free)
+- Docker (to run SonarQube — see above)
 - A SonarQube **User Token** (generated from *My Account → Security*)
 
 ### Environment Variables
