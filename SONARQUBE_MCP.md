@@ -542,6 +542,89 @@ Restart Claude Desktop. You should see the SonarQube tools available in the tool
 
 ---
 
+### Step 11 — Generate a GitHub Personal Access Token (PAT)
+
+If Claude Desktop is not available, GitHub Models is a free alternative that works with GPT-4o, Llama, Mistral and others.
+
+1. Go to **GitHub → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. No special scopes needed — default read-only access is sufficient for GitHub Models
+4. Copy the token (starts with `github_pat_...`)
+
+---
+
+### Step 12 — Run the App with GitHub Models
+
+Build the JAR if not already done:
+
+```cmd
+.\gradlew build
+```
+
+**Windows (Command Prompt):**
+```cmd
+set SONARQUBE_URL=http://localhost:9000
+set SONARQUBE_TOKEN=squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b
+set GITHUB_TOKEN=github_pat_yourtoken
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:SONARQUBE_URL   = "http://localhost:9000"
+$env:SONARQUBE_TOKEN = "squ_16c95e0325227fb5a46369b1f5f5c2d1afc0752b"
+$env:GITHUB_TOKEN    = "github_pat_yourtoken"
+java -jar build\libs\SonarqubeMcpDemo-0.0.1-SNAPSHOT.jar
+```
+
+The app starts on `http://localhost:8080`. Logs appear in the console (SSE mode, not STDIO).
+
+---
+
+### Step 13 — Ask Questions via curl or Postman
+
+The `POST /chat` endpoint accepts a plain-text question. The AI automatically calls the SonarQube tools and returns a human-readable answer.
+
+**curl (Command Prompt):**
+```cmd
+curl -X POST http://localhost:8080/chat -H "Content-Type: text/plain" -d "What bugs does sonarqube-mcp-demo have?"
+```
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri http://localhost:8080/chat -Method POST -ContentType "text/plain" -Body "What is the quality gate status of sonarqube-mcp-demo?"
+```
+
+**Postman:**
+- Method: `POST`
+- URL: `http://localhost:8080/chat`
+- Body: select `raw`, type `Text`, enter your question
+
+**Example questions to try:**
+```
+What projects are in SonarQube?
+What are the metrics for sonarqube-mcp-demo?
+Is the quality gate passing for sonarqube-mcp-demo?
+Show me all code smells in sonarqube-mcp-demo
+Are there any security hotspots I should review?
+Give me a full health summary of sonarqube-mcp-demo
+```
+
+**Changing the model** (default is `gpt-4o-mini`):
+
+| Model | Set `GITHUB_MODEL` to |
+|-------|-----------------------|
+| GPT-4o mini (default) | `gpt-4o-mini` |
+| GPT-4o | `gpt-4o` |
+| Meta Llama 3.3 70B | `Meta-Llama-3.3-70B-Instruct` |
+| Mistral Large | `Mistral-Large-2411` |
+
+```cmd
+set GITHUB_MODEL=gpt-4o
+```
+
+---
+
 ### Verified Results After All Steps
 
 | MCP Tool | Status | Result |
@@ -552,6 +635,7 @@ Restart Claude Desktop. You should see the SonarQube tools available in the tool
 | `searchIssues` | ✅ | Returns 8 open issues |
 | `getSecurityHotspots` | ✅ | No hotspots |
 | `getServerInfo` | ✅ | SonarQube 26.3.0 |
+| `POST /chat` (GitHub Models) | ✅ | AI answers using live SonarQube data |
 
 ---
 
