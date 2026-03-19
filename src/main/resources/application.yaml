@@ -8,12 +8,14 @@ spring:
         # Switch to stdio: true only when using Claude Desktop / CLI integration
         stdio: false
 
-    # GitHub Models uses an OpenAI-compatible API.
+    # GitHub Models uses the Azure AI Inference API (OpenAI-compatible).
+    # The chat completions path is /chat/completions (not the OpenAI default /v1/chat/completions).
     # Set GITHUB_TOKEN to your GitHub Personal Access Token.
     openai:
       base-url: https://models.inference.ai.azure.com
       api-key: ${GITHUB_TOKEN}
       chat:
+        completions-path: /chat/completions
         options:
           model: ${GITHUB_MODEL:gpt-4o-mini}
 
